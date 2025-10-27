@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Park Sense - Smart Parking</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .slot {
+            transition: all 0.3s ease;
+        }
+        .slot:hover {
+            transform: scale(1.05);
+        }
+        /* Style for the custom modal */
+        #modal {
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        #modal-content {
+            transition: transform 0.3s ease-in-out;
+        }
+        /* Fix for datetime-local picker icon color in dark mode (though we are in light mode) */
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.5);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 class="text-3xl font-bold text-blue-600">Park Sense</h1>
+            <div>
+                <button class="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition">Login</button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-8">
+        
+        <!-- Lot Selector -->
+        <div class="mb-6 bg-white p-4 rounded-lg shadow">
+            <label for="lot-selector" class="block text-sm font-medium text-gray-700 mb-2">Select Parking Lot:</label>
+            <select id="lot-selector" class="w-full p-2 border border-gray-300 rounded-lg">
+                <option value="lot-a">Downtown Garage (Lot A)</option>
+                <option value="lot-b">Airport Economy (Lot B)</option>
+                <option value="lot-c">Mall Rooftop (Lot C)</option>
+            </select>
+        </div>
+
+        <!-- Date/Time and Duration Selector -->
+        <div class="mb-6 bg-white p-4 rounded-lg shadow flex flex-col sm:flex-row gap-4">
+            <div class="flex-1">
+                <label for="start-time" class="block text-sm font-medium text-gray-700">Booking Start Time:</label>
+                <input type="datetime-local" id="start-time" class="w-full p-2 border border-gray-300 rounded-lg mt-1">
+            </div>
+            <div class="flex-1">
+                <label for="duration-select" class="block text-sm font-medium text-gray-700">Select Duration (hours):</label>
+                <select id="duration-select" class="w-full p-2 border border-gray-300 rounded-lg mt-1">
+                    <option value="1">1 Hour</option>
+                    <option value="2">2 Hours</option>
+                    <option value="3">3 Hours</option>
+                    <option value="all-day">All Day (8 Hours)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Parking Grid -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 id="grid-title" class="text-2xl font-semibold mb-4 text-center">Lot A: Availability</h2>
+            <div id="parking-grid" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
+                <!-- Slots will be dynamically generated here -->
+            </div>
+
+            <!-- Legend -->
+            <div class="mt-6 flex flex-wrap justify-center gap-4">
+                <div class="flex items-center">
+                    <div class="w-5 h-5 bg-green-100 border-2 border-green-500 rounded mr-2"></div>
+                    <span>Available</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-5 h-5 bg-red-100 border-2 border-red-500 rounded mr-2"></div>
+                    <span>Occupied</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-5 h-5 bg-blue-100 border-2 border-blue-500 rounded mr-2"></div>
+                    <span>Selected</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-5 h-5 bg-yellow-100 border-2 border-yellow-500 rounded mr-2"></div>
+                    <span>Maintenance</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Booking Modal -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 invisible opacity-0">
+        <div id="modal-content" class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 transform scale-95">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-2xl font-semibold">Book Slot: <span id="modal-slot-id" class="text-blue-600"></span></h3>
+                <button id="close-modal" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            </div>
+            
+            <!-- Booking Form -->
+            <form id="booking-form">
+                <div class="mb-4">
+                    <label for="vehicle-plate" class="block text-sm font-medium text-gray-700">Vehicle Plate</label>
+                    <input type="text" id="vehicle-plate" value="ABC-123" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg" required>
+                </div>
+                <!-- Updated Duration and Cost Display -->
+                <div class="mb-4">
+                    <label for="duration-display" class="block text-sm font-medium text-gray-700">Duration</label>
+                    <input type="text" id="duration-display" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg bg-gray-100" readonly>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Estimated Cost</label>
+                    <p id="estimated-cost" class="text-3xl font-bold text-blue-600">$0.00</p>
+                </div>
+                
+                <hr class="my-4">
+                
+                <!-- Simulated Payment -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Digital Payment (Simulated)</label>
+                    <input type="text" placeholder="Card Number" class="mt-1 block w-full p-2 border border-gray-300 rounded-lg" value="**** **** **** 4242">
+                    <div class="flex gap-4 mt-2">
+                        <input type="text" placeholder="MM/YY" class="block w-1/2 p-2 border border-gray-300 rounded-lg" value="12/26">
+                        <input type="text" placeholder="CVC" class="block w-1/2 p-2 border border-gray-300 rounded-lg" value="123">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">Confirm & Pay</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Success/Error Message Box -->
+    <div id="message-box" class="fixed bottom-4 right-4 bg-green-500 text-white p-4 rounded-lg shadow-xl transition-all duration-300 translate-x-full opacity-0">
+        <span id="message-text"></span>
+    </div>
+
+
+    <script>
+        // --- DATABASE SIMULATION ---
+        // In a real app, this data comes from your MySQL database.
+        const allLotsData = {
+            'lot-a': {
+                name: 'Downtown Garage (Lot A)',
+                pricing: { '1': 5.00, '2': 9.00, '3': 12.00, 'all-day': 20.00 },
+                slots: [
+                    { id: 'A-1', status: 'available' }, { id: 'A-2', status: 'available' },
+                    { id: 'A-3', status: 'occupied' },  { id: 'A-4', status: 'available' },
+                    { id: 'A-5', status: 'available' }, { id: 'A-6', status: 'available' },
+                    { id: 'A-7', status: 'occupied' },  { id: 'A-8', status: 'available' },
+                    { id: 'A-9', status: 'available' }, { id: 'A-10', status: 'available' },
+                    { id: 'A-11', status: 'available' }, { id: 'A-12', status: 'maintenance' },
+                    { id: 'A-13', status: 'occupied' },  { id: 'A-14', status: 'available' },
+                    { id: 'A-15', status: 'available' }, { id: 'A-16', status: 'available' },
+                ]
+            },
+            'lot-b': {
+                name: 'Airport Economy (Lot B)',
+                pricing: { '1': 3.00, '2': 5.50, '3': 8.00, 'all-day': 15.00 },
+                slots: [
+                    { id: 'B-1', status: 'available' }, { id: 'B-2', status: 'occupied' },
+                    { id: 'B-3', status: 'occupied' },  { id: 'B-4', status: 'available' },
+                    { id: 'B-5', status: 'available' }, { id: 'B-6', status: 'available' },
+                    { id: 'B-7', status: 'occupied' },  { id: 'B-8', status: 'available' },
+                    { id: 'B-9', status: 'available' }, { id: 'B-10', status: 'available' },
+                    { id: 'B-11', status: 'available' }, { id: 'B-12', status: 'occupied' },
+                    { id: 'B-13', status: 'available' }, { id: 'B-14', status: 'available' },
+                    { id: 'B-15', status: 'available' }, { id: 'B-16', status: 'maintenance' },
+                    { id: 'B-17', status: 'available' }, { id: 'B-18', status: 'available' },
+                    { id: 'B-19', status: 'occupied' },  { id: 'B-20', status: 'available' },
+                ]
+            },
+            'lot-c': {
+                name: 'Mall Rooftop (Lot C)',
+                pricing: { '1': 2.00, '2': 4.00, '3': 6.00, 'all-day': 10.00 },
+                slots: [
+                    { id: 'C-1', status: 'available' }, { id: 'C-2', status: 'available' },
+                    { id: 'C-3', status: 'available' }, { id: 'C-4', status: 'available' },
+                    { id: 'C-5', status: 'available' }, { id: 'C-6', status: 'occupied' },
+                    { id: 'C-7', status: 'available' }, { id: 'C-8', status: 'available' },
+                    { id: 'C-9', status: 'available' }, { id: 'C-10', status: 'available' },
+                ]
+            }
+        };
+
+        let currentLotId = 'lot-a';
+        let selectedSlotId = null;
+
+        // --- DOM Elements ---
+        const grid = document.getElementById('parking-grid');
+        const modal = document.getElementById('modal');
+        const modalContent = document.getElementById('modal-content');
+        const closeModalBtn = document.getElementById('close-modal');
+        const modalSlotIdEl = document.getElementById('modal-slot-id');
+        const bookingForm = document.getElementById('booking-form');
+        const messageBox = document.getElementById('message-box');
+        const messageText = document.getElementById('message-text');
+        
+        // New elements
+        const lotSelector = document.getElementById('lot-selector');
+        const gridTitle = document.getElementById('grid-title');
+        const startTimeInput = document.getElementById('start-time');
+        const durationSelect = document.getElementById('duration-select');
+        const durationDisplay = document.getElementById('duration-display');
+        const estimatedCost = document.getElementById('estimated-cost');
+
+        // --- FUNCTIONS ---
+
+        /**
+         * Renders the parking slots in the grid based on 'currentLotId'.
+         */
+        function renderSlots() {
+            grid.innerHTML = ''; // Clear the grid
+            const lotData = allLotsData[currentLotId];
+            const slots = lotData.slots; // Get slots for the current lot
+            
+            gridTitle.textContent = `${lotData.name}: Availability`; // Update title
+
+            for (const slot of slots) {
+                const slotEl = document.createElement('div');
+                slotEl.dataset.slotId = slot.id;
+                slotEl.classList.add('slot', 'p-2', 'h-16', 'flex', 'items-center', 'justify-center', 'font-semibold', 'border-2', 'rounded-lg', 'cursor-pointer', 'text-sm');
+                
+                let slotIcon = '🚗';
+                
+                // Apply styles based on status
+                switch (slot.status) {
+                    case 'available':
+                        slotEl.classList.add('bg-green-100', 'border-green-500', 'text-green-800', 'hover:bg-green-200');
+                        slotIcon = '✅';
+                        break;
+                    case 'occupied':
+                        slotEl.classList.add('bg-red-100', 'border-red-500', 'text-red-800', 'cursor-not-allowed', 'opacity-60');
+                        slotIcon = '🚗';
+                        break;
+                    case 'maintenance':
+                        slotEl.classList.add('bg-yellow-100', 'border-yellow-500', 'text-yellow-800', 'cursor-not-allowed', 'opacity-60');
+                        slotIcon = '🔧';
+                        break;
+                }
+                
+                // Highlight the selected slot
+                if (slot.id === selectedSlotId) {
+                    slotEl.classList.remove('bg-green-100', 'border-green-500');
+                    slotEl.classList.add('bg-blue-100', 'border-blue-500', 'ring-2', 'ring-blue-500');
+                    slotIcon = '👍';
+                }
+
+                slotEl.innerHTML = `${slot.id} <span class="ml-1">${slotIcon}</span>`;
+                slotEl.addEventListener('click', () => handleSlotClick(slot.id));
+                grid.appendChild(slotEl);
+            }
+        }
+
+        /**
+         * Handles clicking on a parking slot.
+         */
+        function handleSlotClick(slotId) {
+            // Find the slot in the currently selected lot
+            const slot = allLotsData[currentLotId].slots.find(s => s.id === slotId);
+            
+            if (slot.status === 'available') {
+                selectedSlotId = slotId;
+                openModal();
+                renderSlots(); // Re-render to show selection
+            } else if (slot.status === 'occupied') {
+                showMessage('Slot is already occupied.', 'error');
+            } else {
+                showMessage('Slot is unavailable for maintenance.', 'error');
+            }
+        }
+
+        /**
+         * Opens and shows the booking modal, populating it with dynamic data.
+         */
+        function openModal() {
+            if (!selectedSlotId) return;
+
+            const lotData = allLotsData[currentLotId];
+            const durationKey = durationSelect.value;
+            const durationText = durationSelect.options[durationSelect.selectedIndex].text;
+            const cost = lotData.pricing[durationKey];
+
+            // Populate modal
+            modalSlotIdEl.textContent = selectedSlotId;
+            durationDisplay.value = durationText; // Show "1 Hour" or "All Day (8 Hours)"
+            estimatedCost.textContent = `$${cost.toFixed(2)}`; // Show "$5.00"
+
+            modal.classList.remove('invisible', 'opacity-0');
+            modalContent.classList.remove('scale-95');
+        }
+
+        /**
+         * Closes and hides the booking modal.
+         */
+        function closeModal() {
+            selectedSlotId = null;
+            modal.classList.add('invisible', 'opacity-0');
+            modalContent.classList.add('scale-95');
+            renderSlots(); // Re-render to remove selection highlight
+        }
+
+        /**
+         * Handles the (simulated) booking and payment.
+         */
+        function handleBooking(event) {
+            event.preventDefault();
+            
+            // This is where you would call your backend service,
+            // which would then run the 'sp_CreateBooking' stored procedure.
+            // It would pass the start time, duration, user ID, vehicle, and slot ID.
+            
+            // --- Simulation Logic ---
+            // Find the slot in the correct lot's data
+            const slot = allLotsData[currentLotId].slots.find(s => s.id === selectedSlotId);
+            
+            if (slot) {
+                // 1. Update the local "database" (the array)
+                slot.status = 'occupied';
+                
+                // 2. Close the modal
+                const bookedSlotId = selectedSlotId;
+                closeModal();
+                
+                // 3. Re-render the grid to show the slot is now occupied
+                renderSlots();
+                
+                // 4. Show success message
+                showMessage(`Successfully booked slot ${bookedSlotId}!`, 'success');
+            } else {
+                showMessage('Booking failed. Slot not found.', 'error');
+            }
+        }
+
+        /**
+         * Shows a temporary message box on the screen.
+         */
+        function showMessage(message, type = 'success') {
+            messageText.textContent = message;
+            
+            // Set color
+            if (type === 'error') {
+                messageBox.classList.remove('bg-green-500');
+                messageBox.classList.add('bg-red-500');
+            } else {
+                messageBox.classList.remove('bg-red-500');
+                messageBox.classList.add('bg-green-500');
+            }
+
+            // Show animation
+            messageBox.classList.remove('translate-x-full', 'opacity-0');
+            
+            // Hide after 3 seconds
+            setTimeout(() => {
+                messageBox.classList.add('translate-x-full', 'opacity-0');
+            }, 3000);
+        }
+        
+        /**
+         * Sets the default start time to 'now' in the datetime-local input.
+         */
+        function setDefaultTime() {
+            const now = new Date();
+            // Adjust for local timezone
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            // Clear seconds and milliseconds
+            now.setSeconds(0);
+            now.setMilliseconds(0);
+            // Format as 'YYYY-MM-DDTHH:MM'
+            startTimeInput.value = now.toISOString().slice(0, 16);
+        }
+
+        // --- EVENT LISTENERS ---
+        closeModalBtn.addEventListener('click', closeModal);
+        bookingForm.addEventListener('submit', handleBooking);
+        
+        // New listener for the lot selector
+        lotSelector.addEventListener('change', (e) => {
+            currentLotId = e.target.value;
+            renderSlots();
+        });
+        
+        // Close modal if clicking outside the content
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        // --- INITIALIZATION ---
+        // Render the slots and set default time when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            setDefaultTime();
+            renderSlots();
+        });
+
+    </script>
+</body>
+</html>
+
